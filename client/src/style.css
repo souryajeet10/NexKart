@@ -434,3 +434,52 @@ body:has(.customer) { background: #eeebfc; }
 .cart-connection { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 14px; font-size: 13px; color: var(--muted); }
 .cart-connection span { display: flex; align-items: center; gap: 6px; }
 .cart-connection button { color: var(--brand); min-height: 36px; text-decoration: underline; }
+/* Compact connection flow: keep both connection methods visible on phones. */
+.connect-content { animation: connect-enter .45s ease-out both; }
+.scan-cart-button, .connect-submit { transition: transform .18s ease, background .2s ease, box-shadow .2s ease; }
+.scan-cart-button:hover { box-shadow: 0 6px 20px #6632de18; }
+.scan-cart-button:active, .connect-submit:active { transform: scale(.98); }
+.connect-spinner { animation: connect-spin .9s linear infinite; }
+.camera-frame { position: relative; overflow: hidden; border-radius: 16px; background: #020410; }
+.camera-frame video { display: block; }
+.scan-line { position: absolute; left: 8%; right: 8%; top: 15%; height: 2px; background: #62f5dc; box-shadow: 0 0 12px #62f5dc; animation: scan-sweep 2.2s ease-in-out infinite alternate; }
+.connect-success { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; }
+.success-ring { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; color: var(--green); background: var(--green-bg); animation: success-pop .5s cubic-bezier(.2,.9,.3,1.3) both; }
+.success-ring svg path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: tick-draw .4s .18s ease forwards; }
+.connect-success h2 { margin: 0; font-size: 24px; }
+.connect-success p { margin: 0; color: var(--muted); }
+@keyframes connect-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes connect-spin { to { transform: rotate(360deg); } }
+@keyframes scan-sweep { to { top: 85%; } }
+@keyframes success-pop { from { opacity: 0; transform: scale(.65); } to { opacity: 1; transform: scale(1); } }
+@keyframes tick-draw { to { stroke-dashoffset: 0; } }
+@media (max-width: 600px), (max-height: 740px) {
+  .customer.connect-page { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .connect-page .customer-header-inner { padding: 14px 18px 10px; }
+  .connect-page .brand .brand-logo { width: 60px; height: 40px; }
+  .connect-page .brand { font-size: 23px; gap: 9px; }
+  .connect-page .brand small { font-size: 13px; }
+  .connect-content { margin: 8px auto 0; padding: 0 16px; }
+  .connect-symbol, .connect-eyebrow, .connect-footnote { display: none; }
+  .connect-content h1 { font-size: 28px; margin: 4px 0 8px; }
+  .connect-content > p { font-size: 14px; line-height: 1.4; margin: 0 auto 14px; max-width: 320px; }
+  .connect-page .connect-panel { padding: 14px; margin-bottom: 0; border-radius: 18px; }
+  .scan-cart-button { display: grid; grid-template-columns: 36px 1fr; text-align: left; column-gap: 12px; row-gap: 4px; padding: 14px; border-radius: 12px; }
+  .scan-cart-button > svg { width: 34px; height: 34px; grid-row: span 2; }
+  .scan-cart-button strong { font-size: 17px; }
+  .scan-cart-button span { font-size: 12px; }
+  .connect-divider { margin: 14px 0; }
+  .connect-panel form { gap: 8px; }
+  .connect-panel input { min-height: 46px; padding: 10px 12px; font-size: 16px; }
+  .connect-panel .button { min-height: 46px; font-size: 14px; }
+  .connect-help { margin-top: 12px; font-size: 11px; line-height: 1.4; }
+  .connect-panel .notice { font-size: 12px; line-height: 1.4; margin-bottom: 10px; padding: 10px; }
+  .camera-frame video { height: clamp(90px, 20dvh, 150px); aspect-ratio: auto; }
+  .camera-view p { margin: 6px 0; font-size: 12px; }
+  .camera-view .button { min-height: 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .connect-content, .connect-spinner, .scan-line, .success-ring, .success-ring svg path { animation: none; }
+  .success-ring svg path { stroke-dashoffset: 0; }
+  .scan-cart-button, .connect-submit { transition: none; }
+}

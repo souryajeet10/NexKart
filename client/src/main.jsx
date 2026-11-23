@@ -24,7 +24,7 @@ async function api(path, method = 'GET', body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.headers.get('content-type')?.includes('application/json')) {
-    throw new Error('NexKart backend is unavailable. Open the full-app server URL or connect this deployment to its backend.');
+    throw new Error('Cart service is unavailable. Please try again shortly.');
   }
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Request failed.');
@@ -514,10 +514,11 @@ function Root() {
   const [connected, setConnected] = useState(false);
   if (admin) return <App/>;
   if (connected) return <App onDisconnect={() => setConnected(false)}/>;
-  return <ConnectCart connect={async code => {
+  return <ConnectCart connect={async (code, showSuccess) => {
     const snapshot = await api('/cart');
     if (snapshot.cartId !== code) throw new Error('Cart not found. Check the code on your trolley and try again.');
     if (!snapshot.connected) throw new Error('This cart is offline. Ask a store assistant for help or try another cart.');
+    await showSuccess();
     setConnected(true);
   }}/>;
 }

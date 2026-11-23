@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Camera, QrCode, ShoppingCart, X } from 'lucide-react';
+import { ArrowRight, Camera, Check, LoaderCircle, QrCode, ShoppingCart, X } from 'lucide-react';
 import { readCartCode } from './cart-code.js';
 
 export default function ConnectCart({ connect }) {
@@ -7,10 +7,13 @@ export default function ConnectCart({ connect }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const transitionTimer = useRef(null);
+  const finishTransition = useRef(null);
   const video = useRef(null);
   const lock = useRef(false);
   const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; clearTimeout(transitionTimer.current); finishTransition.current?.(); }; }, []);
 
   async function submit(value) {
     if (lock.current) return;
@@ -21,9 +24,16 @@ export default function ConnectCart({ connect }) {
     try {
       const normalized = readCartCode(value, window.location.origin);
       setCode(normalized);
-      await connect(normalized);
+      await connect(normalized, async () => {
+        if (!mounted.current) return;
+        setSuccess(true);
+        await new Promise(resolve => {
+          finishTransition.current = resolve;
+          transitionTimer.current = setTimeout(resolve, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 150 : 850);
+        });
+      });
     } catch (err) {
-      if (mounted.current) setError(err.message);
+      if (mounted.current) { setSuccess(false); setError(err.message); }
     } finally {
       lock.current = false;
       if (mounted.current) setBusy(false);
@@ -78,17 +88,19 @@ export default function ConnectCart({ connect }) {
       <div className="connect-symbol"><ShoppingCart size={38}/></div>
       <span className="connect-eyebrow">YOUR SHOPPING STARTS HERE</span>
       <h1>Connect your cart.</h1>
-      <p>Find the QR label on your trolley. Scan it or enter the cart code to start shopping.</p>
-      <section className="panel connect-panel" aria-label="Connect to a cart">
+      <p>Scan your trolley’s QR or enter its code to start shopping.</p>
+      <section className={'panel connect-panel' + (success ? ' is-connected' : '')} aria-label="Connect to a cart" aria-busy={busy && !success}>
+        {success ? <div className="connect-success" role="status"><span className="success-ring"><Check size={42}/></span><h2>Cart connected!</h2><p>{code} · Opening your home…</p></div> : <>
         {error && <div className="notice" role="alert">{error}</div>}
-        {scanning ? <div className="camera-view"><video ref={video} muted playsInline aria-label="Cart QR camera preview"/><p role="status">Point your camera at the cart’s QR code.</p><button className="button" onClick={() => setScanning(false)}><X size={18}/> Close camera</button></div> : <button className="scan-cart-button" disabled={busy} onClick={() => { setError(''); setScanning(true); }}><QrCode size={44}/><strong>Scan cart QR</strong><span><Camera size={16}/> Use your camera</span></button>}
+        {scanning ? <div className="camera-view"><div className="camera-frame"><video ref={video} muted playsInline aria-label="Cart QR camera preview"/><span className="scan-line" aria-hidden="true"/></div><p role="status">Point at the cart’s QR code.</p><button className="button" onClick={() => setScanning(false)}><X size={18}/> Close camera</button></div> : <button className="scan-cart-button" disabled={busy} onClick={() => { setError(''); setScanning(true); }}><QrCode size={44}/><strong>Scan cart QR</strong><span><Camera size={16}/> Use your camera</span></button>}
         <div className="connect-divider">or enter cart code</div>
         <form onSubmit={event => { event.preventDefault(); submit(code); }}>
           <label htmlFor="cart-code">Cart code</label>
           <input id="cart-code" value={code} onChange={event => setCode(event.target.value)} placeholder="e.g. SC-01" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={40} required disabled={busy}/>
-          <button className="button primary full" disabled={busy || !code.trim()} type="submit">{busy ? 'Connecting…' : 'Connect & start shopping'}<ArrowRight size={18}/></button>
+          <button className="button primary full connect-submit" disabled={busy || !code.trim()} type="submit">{busy ? <><LoaderCircle className="connect-spinner" size={18}/> Connecting…</> : <>Connect & start shopping<ArrowRight size={18}/></>}</button>
         </form>
         <p className="connect-help">Your cart code is printed beside its QR code.</p>
+        </>}
       </section>
       <p className="connect-footnote">Scan. Verify. Checkout.</p>
     </main>
