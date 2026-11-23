@@ -1,0 +1,19 @@
+services:
+  smartcart:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      SMARTCART_DEVICE_KEY: ${SMARTCART_DEVICE_KEY:-}
+    volumes:
+      - smartcart-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/cart').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  smartcart-data:

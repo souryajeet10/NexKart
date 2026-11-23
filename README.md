@@ -11,7 +11,7 @@ npm ci
 npm start
 ```
 
-Open [the SmartCart dashboard](http://127.0.0.1:3001). The home page is the customer checkout. Follow the scan and scale prompts to shop. Use **Admin console** in the header or open [the admin console](http://127.0.0.1:3001/admin) for the catalog, session history, diagnostics and full simulator. Both views share the same live cart. The views are separated by purpose and share the local demo's access model. Keep the terminal open. Stop the server with Ctrl+C. The ZIP includes a built dashboard. Run `npm run build` after editing frontend source. The ZIP includes a built dashboard. Run `npm run build` after editing frontend source. The ZIP includes a built dashboard. Run `npm run build` after editing frontend source. The initial dependency install needs internet access. The application can then run offline.
+Open [the SmartCart dashboard](http://127.0.0.1:3001). The home page is the customer checkout. Follow the scan and scale prompts to shop. Open [the admin console](http://127.0.0.1:3001/admin) for the catalog, session history, diagnostics and full simulator. Both views share the same live cart. The views are separated by purpose and share the local demo's access model. Keep the terminal open. Stop the server with Ctrl+C. The ZIP includes a built dashboard. Run `npm run build` after editing frontend source. The ZIP includes a built dashboard. Run `npm run build` after editing frontend source. The ZIP includes a built dashboard. Run `npm run build` after editing frontend source. The initial dependency install needs internet access. The application can then run offline.
 
 SQLite creates `data/smartcart.sqlite` on first launch and seeds the five demo products. Product edits, current cart items, and session history survive a restart. The application uses one cart, `SC-01`. Checkout saves a demo receipt without processing a payment.
 
@@ -60,3 +60,7 @@ The tests cover verification, noise, duplicate and unknown scans, unexpected wei
 - [Architecture and API](docs/ARCHITECTURE.md)
 
 `client/` contains the React, Vite, Tailwind and Lucide dashboard. `server/` contains Express, Socket.IO, SQLite and the state machine. `firmware/` contains the Arduino sketch and a configuration template.
+
+## Hosting
+
+See [full-app hosting](docs/DEPLOYMENT.md) for Docker and managed Node.js setup with persistent storage. Customer checkout is at `/`; open `/admin` directly for the admin console.

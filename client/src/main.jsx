@@ -22,6 +22,9 @@ async function api(path, method = 'GET', body) {
     method, headers: { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (!response.headers.get('content-type')?.includes('application/json')) {
+    throw new Error('SmartCart backend is unavailable. Open the full-app server URL or connect this deployment to its backend.');
+  }
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Request failed.');
   return result;
@@ -217,7 +220,7 @@ function Customer({ cart, products, action, checkout, openReceipt, busy, live, t
   return <div className="customer">
     <header className="customer-header"><div className="customer-header-inner">
       <a href="/" className="brand"><span><ShoppingCart size={29}/></span><div>SmartCart<small>Self Checkout</small></div></a>
-      <div className="top-controls">{themeButton}<a className="icon" href="/admin" aria-label="Admin console"><Settings2 size={21}/></a></div>
+      <div className="top-controls">{themeButton}</div>
     </div></header>
     <main className="customer-content">
       <section className="customer-intro">
@@ -227,7 +230,7 @@ function Customer({ cart, products, action, checkout, openReceipt, busy, live, t
         <div className="hero-cart" aria-hidden="true"><div className="groceries">🥦 🥛</div><ShoppingCart strokeWidth={1.4}/><span className="hero-spark">✦</span></div>
       </section>
       {errorNotice}
-      {!cart && <div className="panel" role="status">Connecting to SmartCart…</div>}
+      {!cart && <div className="panel" role="status">{error ? 'Unable to connect to SmartCart.' : 'Connecting to SmartCart…'}</div>}
       {cart && <>
         <div className="shopping-summary" aria-label="Shopping summary">
           {[[Package, 'Items', cart.items.length], [Scale, 'Weight', weight(cart.actual)], [Wallet, 'Total', money(cart.subtotal)]].map(([Icon, label, value]) => <div key={label}><span className="summary-icon"><Icon/></span><span><small>{label}</small><strong>{value}</strong></span></div>)}
@@ -264,7 +267,7 @@ function Customer({ cart, products, action, checkout, openReceipt, busy, live, t
         </>}
       </>}
     </main>
-    <nav className="shop-nav" aria-label="Shop navigation">{[[LayoutDashboard, 'Home'], [Package, 'Products'], [History, 'History']].map(([Icon, name]) => <button key={name} className={view === name ? 'active' : ''} aria-current={view === name ? 'page' : undefined} onClick={() => setView(name)}><Icon size={24}/><span>{name}</span></button>)}<a href="/admin"><Settings2 size={24}/><span>Admin</span></a></nav>
+    <nav className="shop-nav" aria-label="Shop navigation">{[[LayoutDashboard, 'Home'], [Package, 'Products'], [History, 'History']].map(([Icon, name]) => <button key={name} className={view === name ? 'active' : ''} aria-current={view === name ? 'page' : undefined} onClick={() => setView(name)}><Icon size={24}/><span>{name}</span></button>)}</nav>
   </div>;
 }
 
