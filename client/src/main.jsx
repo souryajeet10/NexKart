@@ -260,7 +260,7 @@ function Customer({ cart, products, action, checkout, openReceipt, busy, live, t
         </section>
         <section className="panel shopper-cart">
           <div className="section-title"><ShoppingCart/><h2>Cart Items ({cart.items.length})</h2>{sim && !paid && <button className="clear-cart" disabled={busy || unavailable || (!cart.items.length && !pending)} onClick={() => { if (window.confirm('Clear the demo cart and start a new session?')) action('/sim/reset'); }}><Trash2 size={17}/> Clear Cart</button>}</div>
-          {pending && <div className="pending"><div><small>{pending.operation === 'remove' ? 'AWAITING REMOVAL' : 'AWAITING VERIFICATION'}</small><strong>{pending.item.name}</strong><span>{money(pending.item.price)} � {grams(pending.item.grams)}</span></div>{!pending.cancelled && <Button disabled={busy || unavailable} onClick={() => action('/cancel')}>Cancel</Button>}</div>}
+          {pending && <div className="pending"><div><small>{pending.operation === 'remove' ? 'AWAITING REMOVAL' : 'AWAITING VERIFICATION'}</small><strong>{pending.item.name}</strong><span>{money(pending.item.price)} · {grams(pending.item.grams)}</span></div>{!pending.cancelled && <Button disabled={busy || unavailable} onClick={() => action('/cancel')}>Cancel</Button>}</div>}
           {!cart.items.length ? <div className="empty"><span><ShoppingCart size={30}/></span><h3>A fresh start for your cart</h3><p>Scan your first item to add it here.</p></div> : <div className="cart-rows">{group(cart.items).map((item) => <div className="cart-row" key={item.lineId}>
             <span className="item-art">{item.image ? <img src={item.image} alt=""/> : <Package/>}</span><div className="item-info"><strong>{item.name}</strong><small>{grams(item.grams)}</small></div><strong className="item-price">{money(item.price * item.quantity)}</strong>
             <div className="quantity"><button aria-label={'Remove one ' + item.name} disabled={busy || !scanning} onClick={() => action('/remove', { lineId: item.lineId })}>−</button><span>{item.quantity}</span><button aria-label={'Scan another ' + item.name} disabled={busy || !scanning || !sim || !products.some((p) => p.id === item.id)} onClick={() => scan(products.find((p) => p.id === item.id))}>+</button></div><span className="item-verified" aria-label="Verified"><Check size={17}/></span>
@@ -516,7 +516,7 @@ function Root() {
   const [connected, setConnected] = useState(false);
   if (admin) return <App/>;
   if (connected) return <App onDisconnect={() => setConnected(false)}/>;
-  return <ConnectCart connect={async (code, showSuccess) => {
+  return <ConnectCart bypass={() => setConnected(true)} connect={async (code, showSuccess) => {
     const snapshot = await api('/cart');
     if (snapshot.cartId !== code) throw new Error('Cart not found. Check the code on your trolley and try again.');
     if (!snapshot.connected) throw new Error('This cart is offline. Ask a store assistant for help or try another cart.');

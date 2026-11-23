@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Camera, Check, LoaderCircle, QrCode, ShoppingCart, X } from 'lucide-react';
 import { readCartCode } from './cart-code.js';
 
-export default function ConnectCart({ connect }) {
+export default function ConnectCart({ connect, bypass }) {
   const [code, setCode] = useState(() => new URLSearchParams(window.location.search).get('cart') || '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -100,6 +100,7 @@ export default function ConnectCart({ connect }) {
           <button className="button primary full connect-submit" disabled={busy || !code.trim()} type="submit">{busy ? <><LoaderCircle className="connect-spinner" size={18}/> Connecting…</> : <>Connect & start shopping<ArrowRight size={18}/></>}</button>
         </form>
         <p className="connect-help">Your cart code is printed beside its QR code.</p>
+        <button className="button full" type="button" disabled={busy} onClick={bypass}>Continue without scanning<ArrowRight size={18}/></button>
         </>}
       </section>
       <p><a className="button" href="/simulator">Try the Virtual SmartCart Simulator</a></p>
