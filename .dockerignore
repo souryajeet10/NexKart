@@ -6,4 +6,5 @@ data
 *.log
 firmware
 *.png
+!client/public/*.png
 *.pdf

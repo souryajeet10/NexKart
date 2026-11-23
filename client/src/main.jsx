@@ -9,7 +9,7 @@ import {
 import './style.css';
 
 const admin = /^\/admin\/?$/.test(window.location.pathname);
-document.title = admin ? 'SmartCart · Admin console' : 'SmartCart · Customer checkout';
+document.title = admin ? 'NexKart · Admin console' : 'NexKart · Customer checkout';
 
 const money = (paise) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(paise / 100);
 const grams = (value) => value == null ? '—' : Math.round(value).toLocaleString('en-IN') + ' g';
@@ -23,7 +23,7 @@ async function api(path, method = 'GET', body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.headers.get('content-type')?.includes('application/json')) {
-    throw new Error('SmartCart backend is unavailable. Open the full-app server URL or connect this deployment to its backend.');
+    throw new Error('NexKart backend is unavailable. Open the full-app server URL or connect this deployment to its backend.');
   }
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Request failed.');
@@ -134,7 +134,7 @@ function App() {
   return <>
     <div className="app">
       <aside className="rail">
-        <div className="brand"><span><ShoppingCart size={20}/></span><div>SmartCart<small>ADMIN CONSOLE</small></div></div>
+        <div className="brand"><img className="brand-logo" src="/nexkart-logo.png" alt=""/><div>NexKart<small>ADMIN CONSOLE</small></div></div>
         <p className="nav-label">ADMIN WORKSPACE</p>
         <nav aria-label="Main navigation">
           {[[LayoutDashboard, 'Overview'], [Package, 'Products'], [History, 'Sessions']].map(([Icon, name]) =>
@@ -154,7 +154,7 @@ function App() {
         </header>
         <div className="content">
           {errorNotice}
-          {!cart && <p>Connecting to SmartCart…</p>}
+          {!cart && <p>Connecting to NexKart…</p>}
           {cart && settings && <ScaleSettings cart={cart} action={action} busy={busy} close={() => setSettings(false)}/>}
           {cart && tab === 'Overview' && <>
             <div className="intro">
@@ -184,7 +184,7 @@ function App() {
           </>}
           {tab === 'Products' && <Products products={products} reload={loadProducts} run={run} busy={busy}/>}
           {tab === 'Sessions' && <Sessions revision={cart ? cart.session.id + '-' + cart.session.status : undefined} openReceipt={openReceipt}/>}
-          <footer><span>SMARTCART / SC-01</span><span>Local IoT checkout system</span></footer>
+          <footer><span>NEXKART / SC-01</span><span>Local IoT checkout system</span></footer>
         </div>
       </main>
     </div>
@@ -219,18 +219,18 @@ function Customer({ cart, products, action, checkout, openReceipt, busy, live, t
   </div>;
   return <div className="customer">
     <header className="customer-header"><div className="customer-header-inner">
-      <a href="/" className="brand"><span><ShoppingCart size={29}/></span><div>SmartCart<small>Self Checkout</small></div></a>
+      <a href="/" className="brand"><img className="brand-logo" src="/nexkart-logo.png" alt=""/><div>NexKart<small>Self Checkout</small></div></a>
       <div className="top-controls">{themeButton}</div>
     </div></header>
     <main className="customer-content">
       <section className="customer-intro">
-        <div className="hero-copy"><span className="session-badge">{cart ? 'SESSION ' + sessionNo(cart.session.id) : 'WELCOME TO SMARTCART'}</span>
+        <div className="hero-copy"><span className="session-badge">{cart ? 'SESSION ' + sessionNo(cart.session.id) : 'WELCOME TO NEXKART'}</span>
           <h1>Your Shopping Cart</h1><p>Scan items & place them on the tray<br/>to auto-verify weight.</p>
         </div>
         <div className="hero-cart" aria-hidden="true"><div className="groceries">🥦 🥛</div><ShoppingCart strokeWidth={1.4}/><span className="hero-spark">✦</span></div>
       </section>
       {errorNotice}
-      {!cart && <div className="panel" role="status">{error ? 'Unable to connect to SmartCart.' : 'Connecting to SmartCart…'}</div>}
+      {!cart && <div className="panel" role="status">{error ? 'Unable to connect to NexKart.' : 'Connecting to NexKart…'}</div>}
       {cart && <>
         <div className="shopping-summary" aria-label="Shopping summary">
           {[[Package, 'Items', cart.items.length], [Scale, 'Weight', weight(cart.actual)], [Wallet, 'Total', money(cart.subtotal)]].map(([Icon, label, value]) => <div key={label}><span className="summary-icon"><Icon/></span><span><small>{label}</small><strong>{value}</strong></span></div>)}
@@ -241,7 +241,7 @@ function Customer({ cart, products, action, checkout, openReceipt, busy, live, t
           <section className="panel"><div className="section-title"><Package/><h2>Products</h2><span className="chip push">{products.length} available</span></div>{catalogue}<Button tone="primary full" onClick={() => setView('Home')}>Back to scanning</Button></section> : <>
         <section className="panel scan-panel">
           <div className="section-title"><Barcode/><h2>Scan Product</h2><span className="rfid-pill"><Radio size={18}/> RFID</span></div>
-          <div className={'scan-zone ' + (pending ? 'is-pending' : '')} role="status"><Radio size={49}/><h3>{paid ? 'Shopping Complete' : unavailable ? 'Reader Offline' : cart.alert ? 'Check Cart Weight' : pending ? 'Verify Your Item' : !cart.sensorReady ? 'Waiting for Scale' : 'Ready to Scan'}</h3><p>{paid ? 'Thank you for shopping with SmartCart.' : pending ? pending.item.name + ' · Place or remove the item as requested below.' : 'Tap the RFID tag on the reader'}</p></div>
+          <div className={'scan-zone ' + (pending ? 'is-pending' : '')} role="status"><Radio size={49}/><h3>{paid ? 'Shopping Complete' : unavailable ? 'Reader Offline' : cart.alert ? 'Check Cart Weight' : pending ? 'Verify Your Item' : !cart.sensorReady ? 'Waiting for Scale' : 'Ready to Scan'}</h3><p>{paid ? 'Thank you for shopping with NexKart.' : pending ? pending.item.name + ' · Place or remove the item as requested below.' : 'Tap the RFID tag on the reader'}</p></div>
           {sim && !paid && <details className="demo-drawer" open={pending || cart.alert ? true : undefined}><summary><FlaskConical size={16}/> Try the demo <span>No physical reader needed</span></summary>
             {pending || cart.alert ? <Button tone="primary full" disabled={busy || unavailable} onClick={() => action('/weight', { grams: target })}><Scale size={18}/>{pending?.cancelled || cart.alert ? 'Correct demo weight' : pending.operation === 'remove' ? 'Remove from demo scale' : 'Place on demo scale'}</Button> : <>{catalogue}<Button tone="primary full" disabled={busy || !scanning || !product} onClick={() => scan()}><Radio size={18}/> Scan selected product</Button></>}
           </details>}
@@ -486,7 +486,7 @@ function DemoPayment({ total, busy, ready, error, close, confirm }) {
   const [method, setMethod] = useState('UPI');
   useEffect(() => { dialog.current.showModal(); }, []);
   return <dialog ref={dialog} className="receipt demo-payment" aria-labelledby="payment-title" onCancel={(event) => { event.preventDefault(); if (!busy) close(); }}>
-    <div className="section-title"><span className="glyph"><Wallet size={22}/></span><div><h2 id="payment-title">Demo checkout</h2><p>A simulated payment, just for trying SmartCart.</p></div><button className="icon push" aria-label="Close checkout" disabled={busy} onClick={close}><X size={18}/></button></div>
+    <div className="section-title"><span className="glyph"><Wallet size={22}/></span><div><h2 id="payment-title">Demo checkout</h2><p>A simulated payment, just for trying NexKart.</p></div><button className="icon push" aria-label="Close checkout" disabled={busy} onClick={close}><X size={18}/></button></div>
     <div className="demo-payment-total"><span>Total payable</span><strong>{money(total)}</strong><small>No real money will be charged</small></div>
     <fieldset className="payment-methods"><legend>Choose a demo payment method</legend>{['UPI', 'Card', 'Cash'].map((name) => <label key={name}><input type="radio" name="payment-method" checked={method === name} onChange={() => setMethod(name)} disabled={busy}/>{name}</label>)}</fieldset>
     <p className="hint">No card details, UPI ID, or bank connection required.</p>
@@ -500,7 +500,7 @@ function Receipt({ receipt, close }) {
   const dialog = useRef(null);
   useEffect(() => { dialog.current.showModal(); }, []);
   return <dialog ref={dialog} className="receipt" aria-labelledby="receipt-title" onCancel={close}>
-    <div className="section-title"><span className="glyph"><Check size={20}/></span><div><h2 id="receipt-title">Digital receipt</h2><p>SmartCart · {receipt.cartId} · Session {sessionNo(receipt.session.id)}</p></div><button className="icon push no-print" onClick={close} aria-label="Close receipt"><X size={18}/></button></div>
+    <div className="section-title"><span className="glyph"><Check size={20}/></span><div><h2 id="receipt-title">Digital receipt</h2><p>NexKart · {receipt.cartId} · Session {sessionNo(receipt.session.id)}</p></div><button className="icon push no-print" onClick={close} aria-label="Close receipt"><X size={18}/></button></div>
     <p className="receipt-demo">Demo checkout complete · No payment was collected.</p>
       <p className="hint">{date(receipt.session.ended)} · Verified trolley weight {grams(receipt.expected)}</p>
     <table><thead><tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>{group(receipt.items).map((item) => <tr key={item.lineId}><td>{item.name}</td><td>{item.quantity}</td><td>{money(item.price)}</td><td>{money(item.price * item.quantity)}</td></tr>)}</tbody></table>
