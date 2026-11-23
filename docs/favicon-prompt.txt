@@ -1,0 +1,3 @@
+Tool: built-in image_gen
+Output: client/public/nexkart-favicon-bold.png
+Prompt: Edit this NexKart icon into a favicon optimized for 16px and 32px browser tabs. Preserve the white italic N, cyan/blue/violet orbital swoosh and shopping-cart identity. Make the combined mark huge, filling 92% of a square canvas, centered. Remove the large padded rounded-square tile and all glow, bevels, shadows and tiny cart interior stripes. Use thick crisp simple shapes, two bold wheels, high contrast white N and bright cyan/violet on a flat dark navy background extending to all edges. No wordmark, no extra text. Compact square composition with very little negative space.
