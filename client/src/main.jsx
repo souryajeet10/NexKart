@@ -127,7 +127,7 @@ function App() {
 
   if (!admin) return <>
     <Customer cart={cart} products={products} action={action} checkout={checkout} openReceipt={openReceipt}
-      busy={busy} live={live} themeButton={themeButton} errorNotice={errorNotice} loadDemo={loadDemo}/>
+      busy={busy} live={live} themeButton={themeButton} error={error} errorNotice={errorNotice} loadDemo={loadDemo}/>
     {receiptDialog}
   </>;
 
@@ -192,7 +192,7 @@ function App() {
   </>;
 }
 
-function Customer({ cart, products, action, checkout, openReceipt, busy, live, themeButton, errorNotice, loadDemo }) {
+function Customer({ cart, products, action, checkout, openReceipt, busy, live, themeButton, error, errorNotice, loadDemo }) {
   const [selected, setSelected] = useState('');
   const [view, setView] = useState('Home');
   const product = products.find((item) => String(item.id) === selected) || products[0];
