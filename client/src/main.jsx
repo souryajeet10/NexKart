@@ -7,6 +7,7 @@ import {
   Settings2, ShoppingCart, Sun, Trash2, Wallet, Wifi, WifiOff, X,
 } from 'lucide-react';
 import './style.css';
+import ConnectCart from './ConnectCart.jsx';
 
 const admin = /^\/admin\/?$/.test(window.location.pathname);
 document.title = admin ? 'NexKart · Admin console' : 'NexKart · Customer checkout';
@@ -44,7 +45,7 @@ function Button({ children, tone = '', ...props }) {
   return <button className={'button ' + tone} {...props}>{children}</button>;
 }
 
-function App() {
+function App({ onDisconnect }) {
   const [cart, setCart] = useState(null);
   const [products, setProducts] = useState([]);
   const [tab, setTab] = useState('Overview');
@@ -127,7 +128,7 @@ function App() {
 
   if (!admin) return <>
     <Customer cart={cart} products={products} action={action} checkout={checkout} openReceipt={openReceipt}
-      busy={busy} live={live} themeButton={themeButton} error={error} errorNotice={errorNotice} loadDemo={loadDemo}/>
+      busy={busy} live={live} themeButton={themeButton} error={error} errorNotice={errorNotice} loadDemo={loadDemo} onDisconnect={onDisconnect}/>
     {receiptDialog}
   </>;
 
@@ -192,7 +193,7 @@ function App() {
   </>;
 }
 
-function Customer({ cart, products, action, checkout, openReceipt, busy, live, themeButton, error, errorNotice, loadDemo }) {
+function Customer({ cart, products, action, checkout, openReceipt, busy, live, themeButton, error, errorNotice, loadDemo, onDisconnect }) {
   const [selected, setSelected] = useState('');
   const [view, setView] = useState('Home');
   const product = products.find((item) => String(item.id) === selected) || products[0];
@@ -223,6 +224,7 @@ function Customer({ cart, products, action, checkout, openReceipt, busy, live, t
       <div className="top-controls">{themeButton}</div>
     </div></header>
     <main className="customer-content">
+      <div className="cart-connection"><span><ShoppingCart size={16}/> Cart {cart?.cartId || 'SC-01'}</span><button onClick={onDisconnect}>Disconnect</button></div>
       <section className="customer-intro">
         <div className="hero-copy"><span className="session-badge">{cart ? 'SESSION ' + sessionNo(cart.session.id) : 'WELCOME TO NEXKART'}</span>
           <h1>Your Shopping Cart</h1><p>Scan items & place them on the tray<br/>to auto-verify weight.</p>
@@ -508,4 +510,16 @@ function Receipt({ receipt, close }) {
   </dialog>;
 }
 
-createRoot(document.getElementById('root')).render(<App/>);
+function Root() {
+  const [connected, setConnected] = useState(false);
+  if (admin) return <App/>;
+  if (connected) return <App onDisconnect={() => setConnected(false)}/>;
+  return <ConnectCart connect={async code => {
+    const snapshot = await api('/cart');
+    if (snapshot.cartId !== code) throw new Error('Cart not found. Check the code on your trolley and try again.');
+    if (!snapshot.connected) throw new Error('This cart is offline. Ask a store assistant for help or try another cart.');
+    setConnected(true);
+  }}/>;
+}
+
+createRoot(document.getElementById('root')).render(<Root/>);

@@ -45,4 +45,6 @@ Use the host's full-app URL for customers and append `/admin` for the console. T
 
 ## Checks and backup
 
+Customers first see a connection screen with QR scanning and manual cart-code entry. The current single-cart backend uses `SC-01`. Print a QR containing `SC-01` or `https://YOUR_APP_DOMAIN/?cart=SC-01` beside that code on the trolley. The customer must connect again after refreshing or disconnecting. Opening a QR link prefills the code; it does not automatically connect. Camera scanning needs HTTPS (or localhost) and browser camera permission. `/admin` opens directly. This connection screen selects the existing shared demo cart; it is not authentication, exclusive reservation, or multi-cart isolation. The frontend-only Vercel deployment cannot validate a cart until its backend is connected.
+
 Check `docker compose ps` and `docker compose logs smartcart` after deployment. Verify `/api/products` returns JSON, then scan and weigh an item in Simulation Mode and reload to confirm persistence. Stop the service before copying the SQLite database and its sidecar files for a consistent offline backup, then restart it.
