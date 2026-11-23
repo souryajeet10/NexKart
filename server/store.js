@@ -8,7 +8,7 @@ const sample = [
   ['A0010005', 'Juice Pack', 6000, 250, 'Beverages'],
 ];
 
-export function openStore(filename) {
+export function openStore(filename, { seedDemo = process.env.NODE_ENV !== 'production' } = {}) {
   const db = new DatabaseSync(filename);
   db.exec(`
     PRAGMA foreign_keys = ON;
@@ -44,6 +44,10 @@ export function openStore(filename) {
       time TEXT NOT NULL, kind TEXT NOT NULL, message TEXT NOT NULL
     );
   `);
+  // Additive migration: preserve existing scan audit records.
+  if (!db.prepare('PRAGMA table_info(scans)').all().some(column => column.name === 'response')) {
+    db.exec('ALTER TABLE scans ADD COLUMN response TEXT');
+  }
   const sql = (query) => db.prepare(query);
   const get = (key) => JSON.parse(sql('SELECT value FROM settings WHERE key = ?').get(key)?.value ?? 'null');
   const set = (key, value) => sql('INSERT OR REPLACE INTO settings VALUES (?, ?)').run(key, JSON.stringify(value));
@@ -58,7 +62,7 @@ export function openStore(filename) {
       throw error;
     }
   }
-  if (!get('seeded')) transaction(() => {
+  if (seedDemo && !get('seeded')) transaction(() => {
     for (const row of sample) sql("INSERT INTO products(uid,name,price,grams,category,image) VALUES (?,?,?,?,?,'')").run(...row);
     set('seeded', true);
   });

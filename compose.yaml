@@ -4,6 +4,7 @@ services:
     ports:
       - "3001:3001"
     environment:
+      SMARTCART_DEVICE_ID: ${SMARTCART_DEVICE_ID:-SC-01-ESP32}
       SMARTCART_DEVICE_KEY: ${SMARTCART_DEVICE_KEY:-}
     volumes:
       - smartcart-data:/data

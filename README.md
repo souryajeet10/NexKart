@@ -64,3 +64,11 @@ The tests cover verification, noise, duplicate and unknown scans, unexpected wei
 ## Hosting
 
 See [full-app hosting](docs/DEPLOYMENT.md) for Docker and managed Node.js setup with persistent storage. Customer checkout is at `/`; open `/admin` directly for the admin console.
+
+## Complete hardware integration
+
+See [HARDWARE_SETUP.md](HARDWARE_SETUP.md) for commissioning, real RFID assignment, production mode and physical acceptance tests, and [docs/API.md](docs/API.md) for the existing HTTP/Socket.IO protocol.
+
+## Virtual SmartCart Simulator
+
+Open `/simulator` or select **Simulator** in the admin navigation. Click **Start Demo** to present RFID scans, tray placement, mismatch detection, LCD/buzzer feedback and checkout without hardware. Demo sessions use separate SQLite storage. See [simulator instructions](docs/SIMULATOR.md).

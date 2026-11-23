@@ -8,9 +8,11 @@ import {
 } from 'lucide-react';
 import './style.css';
 import ConnectCart from './ConnectCart.jsx';
+import VirtualSimulator from './VirtualSimulator.jsx';
 
-const admin = /^\/admin\/?$/.test(window.location.pathname);
-document.title = admin ? 'NexKart · Admin console' : 'NexKart · Customer checkout';
+const simulatorPage = /^\/simulator\/?$/.test(window.location.pathname);
+const admin = simulatorPage || /^\/admin\/?$/.test(window.location.pathname);
+document.title = simulatorPage ? 'NexKart - Virtual Simulator' : admin ? 'NexKart · Admin console' : 'NexKart · Customer checkout';
 
 const money = (paise) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(paise / 100);
 const grams = (value) => value == null ? '—' : Math.round(value).toLocaleString('en-IN') + ' g';
@@ -48,7 +50,7 @@ function Button({ children, tone = '', ...props }) {
 function App({ onDisconnect }) {
   const [cart, setCart] = useState(null);
   const [products, setProducts] = useState([]);
-  const [tab, setTab] = useState('Overview');
+  const [tab, setTab] = useState(simulatorPage ? 'Simulator' : 'Overview');
   const [dark, setDark] = useState(() => localStorage.getItem('smartcart-theme') === 'dark');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -138,7 +140,7 @@ function App({ onDisconnect }) {
         <div className="brand"><img className="brand-logo" src="/nexkart-logo.png?v=27d2da9c" alt=""/><div>NexKart<small>ADMIN CONSOLE</small></div></div>
         <p className="nav-label">ADMIN WORKSPACE</p>
         <nav aria-label="Main navigation">
-          {[[LayoutDashboard, 'Overview'], [Package, 'Products'], [History, 'Sessions']].map(([Icon, name]) =>
+          {[[LayoutDashboard, 'Overview'], [Package, 'Products'], [History, 'Sessions'], [FlaskConical, 'Simulator']].map(([Icon, name]) =>
             <button key={name} className={name === tab ? 'selected' : ''} aria-current={name === tab ? 'page' : undefined} onClick={() => setTab(name)}><Icon size={18}/>{name}</button>)}
         </nav>
         <div className="rail-bottom"><Radio size={17}/><div>Local checkout<small>IoT demo console</small></div></div>
@@ -156,7 +158,7 @@ function App({ onDisconnect }) {
         <div className="content">
           {errorNotice}
           {!cart && <p>Connecting to NexKart…</p>}
-          {cart && settings && <ScaleSettings cart={cart} action={action} busy={busy} close={() => setSettings(false)}/>}
+          {cart && settings && tab !== 'Simulator' && <ScaleSettings cart={cart} action={action} busy={busy} close={() => setSettings(false)}/>}
           {cart && tab === 'Overview' && <>
             <div className="intro">
               <div><div className="eyebrow"><span/> CART OPERATIONS</div><h1>Cart operations</h1><p>Scan, weigh, and verify every item in the trolley.</p></div>
@@ -165,7 +167,7 @@ function App({ onDisconnect }) {
             <section className="metrics" aria-label="Cart metrics">
               <Metric icon={ShoppingCart} label="Cart & session" value={cart.cartId} note={'Session ' + sessionNo(cart.session.id) + ' · ' + (cart.session.status === 'PAID' ? 'Checked out' : 'In progress')}/>
               <Metric icon={Wallet} label="Verified subtotal" value={money(cart.subtotal)} note={cart.items.length + ' verified unit' + (cart.items.length === 1 ? '' : 's')} accent/>
-              <Metric icon={Scale} label={sim ? 'Simulated weight' : 'Measured weight'} value={grams(cart.actual)} note={'Expected ' + grams(cart.expected) + ' · ±' + cart.tolerance + ' g'}/>
+              <Metric icon={Scale} label={sim ? 'Simulated weight' : 'Measured weight'} value={grams(cart.actual)} note={'Expected ' + grams(cart.targetWeight ?? cart.expected) + ' · ±' + cart.tolerance + ' g'}/>
               <Metric icon={cart.connected ? Wifi : WifiOff} label={sim ? 'Simulated ESP32' : 'ESP32 device'} value={cart.connected ? 'Connected' : 'Offline'} note={cart.sensorReady ? 'Stable reading' : 'Waiting for stable weight'}/>
             </section>
             {cart.alert && <div className="weight-alert" role="alert"><Bell size={23}/><div><strong>{cart.alert.title}</strong><p>{cart.alert.message}</p><span>Expected {grams(cart.alert.expected)} <b>·</b> Actual {grams(cart.alert.actual)} {cart.pending ? ' (weight change)' : ''}</span></div><span className="chip red">{cart.connected ? 'Buzzer active' : 'Buzzer offline'}</span></div>}
@@ -183,6 +185,7 @@ function App({ onDisconnect }) {
               </div>
             </div>
           </>}
+          {tab === 'Simulator' && <VirtualSimulator products={products}/>}
           {tab === 'Products' && <Products products={products} reload={loadProducts} run={run} busy={busy}/>}
           {tab === 'Sessions' && <Sessions revision={cart ? cart.session.id + '-' + cart.session.status : undefined} openReceipt={openReceipt}/>}
           <footer><span>NEXKART / SC-01</span><span>Local IoT checkout system</span></footer>
@@ -257,7 +260,7 @@ function Customer({ cart, products, action, checkout, openReceipt, busy, live, t
         </section>
         <section className="panel shopper-cart">
           <div className="section-title"><ShoppingCart/><h2>Cart Items ({cart.items.length})</h2>{sim && !paid && <button className="clear-cart" disabled={busy || unavailable || (!cart.items.length && !pending)} onClick={() => { if (window.confirm('Clear the demo cart and start a new session?')) action('/sim/reset'); }}><Trash2 size={17}/> Clear Cart</button>}</div>
-          {pending && <div className="pending"><div><small>{pending.operation === 'remove' ? 'AWAITING REMOVAL' : 'AWAITING VERIFICATION'}</small><strong>{pending.item.name}</strong></div>{!pending.cancelled && <Button disabled={busy || unavailable} onClick={() => action('/cancel')}>Cancel</Button>}</div>}
+          {pending && <div className="pending"><div><small>{pending.operation === 'remove' ? 'AWAITING REMOVAL' : 'AWAITING VERIFICATION'}</small><strong>{pending.item.name}</strong><span>{money(pending.item.price)} � {grams(pending.item.grams)}</span></div>{!pending.cancelled && <Button disabled={busy || unavailable} onClick={() => action('/cancel')}>Cancel</Button>}</div>}
           {!cart.items.length ? <div className="empty"><span><ShoppingCart size={30}/></span><h3>A fresh start for your cart</h3><p>Scan your first item to add it here.</p></div> : <div className="cart-rows">{group(cart.items).map((item) => <div className="cart-row" key={item.lineId}>
             <span className="item-art">{item.image ? <img src={item.image} alt=""/> : <Package/>}</span><div className="item-info"><strong>{item.name}</strong><small>{grams(item.grams)}</small></div><strong className="item-price">{money(item.price * item.quantity)}</strong>
             <div className="quantity"><button aria-label={'Remove one ' + item.name} disabled={busy || !scanning} onClick={() => action('/remove', { lineId: item.lineId })}>−</button><span>{item.quantity}</span><button aria-label={'Scan another ' + item.name} disabled={busy || !scanning || !sim || !products.some((p) => p.id === item.id)} onClick={() => scan(products.find((p) => p.id === item.id))}>+</button></div><span className="item-verified" aria-label="Verified"><Check size={17}/></span>
@@ -346,8 +349,7 @@ function Simulator({ cart, products, send, run, busy }) {
   useEffect(() => {
     if (!sound || !cart.alert || !cart.connected) return;
     ping(420, 0.16);
-    const timer = setInterval(() => ping(420, 0.16), 700);
-    return () => clearInterval(timer);
+
   }, [sound, Boolean(cart.alert), cart.connected]);
   useEffect(() => {
     if (sound && cart.beep !== seenBeep.current) ping(960, 0.13);
@@ -417,7 +419,7 @@ function ScaleSettings({ cart, action, busy, close }) {
   return <section className="panel settings">
     <div className="section-title"><span className="glyph"><Settings2 size={18}/></span><div><h2>Scale and mode</h2><p>Configure the verification tolerance and scale controls.</p></div><button className="icon push" aria-label="Close settings" onClick={close}><X size={17}/></button></div>
     <div className="settings-grid">
-      <label>Operating mode<select disabled={busy} value={cart.mode} onChange={(event) => action('/mode', { mode: event.target.value })}><option value="simulation">Simulation Mode</option><option value="hardware">Hardware Mode</option></select></label>
+      <label>Operating mode<select disabled={busy} value={cart.mode} onChange={(event) => action('/mode', { mode: event.target.value })}>{cart.simulationEnabled && <option value="simulation">Simulation Mode</option>}<option value="hardware">Hardware Mode</option></select></label>
       <form onSubmit={(event) => { event.preventDefault(); action('/settings', { tolerance: Number(tolerance) }); }}><label>Tolerance (g)<input type="number" min="5" max="30" required value={tolerance} onChange={(event) => setTolerance(event.target.value)}/></label><Button disabled={busy}>Save</Button></form>
       <form onSubmit={(event) => { event.preventDefault(); action('/scale', { kind: 'calibrate', value: Number(factor) }); }}><label>Calibration factor<input type="number" step="any" required value={factor} onChange={(event) => setFactor(event.target.value)} placeholder="Counts per gram"/></label><Button disabled={busy}>Set</Button></form>
       <Button disabled={busy} onClick={() => action('/scale', { kind: 'tare' })}>Tare scale</Button>

@@ -39,3 +39,8 @@ Every request and response with a body uses JSON. Errors have an `error` string.
 Device frames use `Authorization: Bearer <SMARTCART_DEVICE_KEY>` with `id`, `boot`, `grams` or null, optional `scan: {uid,event}`, optional `setupScale` for a ready but uncommissioned scale, and optional `ack` for a completed scale command. Successful responses return `state`, `alert`, `beep`, `command`, `scan`, `session`, `subtotal` and LCD `text`. A null reading invalidates scale readiness even if the authenticated device is still online. Device command IDs are retained by the server until acknowledged.
 
 Socket.IO uses `cart` for full snapshots and `products` for catalog invalidation. The app binds to loopback by default. With LAN access enabled, browser operations are intended for operators on the trusted demo network. The device endpoint requires its separate shared credential. Run one backend process per database.
+
+
+## Integration updates
+
+See [API.md](API.md) for current response fields and [HARDWARE_SETUP.md](../HARDWARE_SETUP.md) for setup. Hardware mismatches now require 1.5 seconds of stable mismatch, after a 4-second placement grace for pending operations. Simulator scenarios remain immediate. The verification counter remains for protocol compatibility; current firmware keeps verified weight silent. SQLite stores scan responses for consistent retries. Device binding persists beyond disconnects. Production forcibly disables simulation and skips new demo catalog seeding. This deployment continues to serve one physical cart per backend/database.

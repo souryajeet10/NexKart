@@ -11,6 +11,13 @@
 #include <math.h>
 #include <esp_system.h>
 #include "config.h"
+// Optional settings keep existing private config.h files compatible.
+#ifndef NEXKART_PASSIVE_BUZZER
+#define NEXKART_PASSIVE_BUZZER false
+#endif
+#ifndef NEXKART_BUZZER_HZ
+#define NEXKART_BUZZER_HZ 2000
+#endif
 
 HX711 scale;
 MFRC522 reader(RFID_SS, RFID_RST);
@@ -27,7 +34,10 @@ struct SensorFrame {
 };
 struct Reply {
   bool warning;
-  uint32_t beep;
+  bool scanError;
+  bool unknown;
+  long subtotal;
+  long price;
   uint32_t scanAck;
   char text[45];
   char command[40];
@@ -41,8 +51,10 @@ Scan heldScan{};
 uint32_t lastTagTime = 0, sequence = 0;
 char lastUid[21] = "";
 uint32_t lastSample = 0, lastReply = 0, lastLcd = 0, beepUntil = 0;
-bool gotSample = false, gotReply = false, warning = false, haveBeep = false;
-uint32_t lastBeep = 0;
+bool gotSample = false, gotReply = false, warning = false;
+uint32_t messageUntil = 0;
+long subtotal = 0;
+char scanLine[17] = "";
 char displayText[45] = "Starting Wi-Fi";
 char tareCommand[40] = "";
 int tareRemaining = 0;
@@ -58,9 +70,16 @@ void copyText(char *out, size_t size, const char *in) {
 // HTTP may wait on a LAN connection. Keep it in its own task so RFID,
 // LCD, scale sampling and buzzer timing continue on the Arduino loop.
 void networkTask(void *) {
-  uint32_t lastReconnect = millis();
+  uint32_t lastReconnect = millis(), lastLog = 0;
+  bool wasConnected = false;
   while (true) {
-    if (WiFi.status() != WL_CONNECTED) {
+    const bool connected = WiFi.status() == WL_CONNECTED;
+    if (connected != wasConnected) {
+      Serial.println(connected ? "WiFi connected" : "WiFi disconnected; reconnecting");
+      if (connected) Serial.println(WiFi.localIP());
+      wasConnected = connected;
+    }
+    if (!connected) {
       if (millis() - lastReconnect >= 4000) {
         WiFi.reconnect();
         lastReconnect = millis();
@@ -88,20 +107,30 @@ void networkTask(void *) {
           }
           String payload;
           serializeJson(request, payload);
-          if (http.POST(payload) == 200) {
+          const int status = http.POST(payload);
+          if (status == 200) {
             JsonDocument response;
             if (!deserializeJson(response, http.getString())) {
               Reply next{};
               next.warning = response["alert"] | false;
-              next.beep = response["beep"] | 0;
+              next.subtotal = response["subtotal"] | 0L;
+              next.price = response["scan"]["product"]["price"] | 0L;
               next.scanAck = current.scan.sequence;
               const char *scanError = response["scan"]["error"] | "";
-              copyText(next.text, sizeof(next.text), scanError[0] ? "Scan rejected" : (response["text"] | ""));
+              next.scanError = scanError[0];
+              next.unknown = (response["scan"]["status"] | 0) == 404;
+              copyText(next.text, sizeof(next.text), scanError[0] ? (next.unknown ? "Unknown RFID" : "Scan rejected") : (response["text"] | ""));
               copyText(next.command, sizeof(next.command), response["command"]["id"] | "");
               copyText(next.kind, sizeof(next.kind), response["command"]["kind"] | "");
               next.value = response["command"]["value"] | 0.0f;
               xQueueOverwrite(replies, &next);
+            } else if (millis() - lastLog > 3000) {
+              Serial.println("Invalid backend JSON; keeping event for retry");
+              lastLog = millis();
             }
+          } else if (millis() - lastLog > 3000) {
+            Serial.printf("Backend HTTP %d; check URL, token, mode and device ID\n", status);
+            lastLog = millis();
           }
           http.end();
         }
@@ -117,16 +146,23 @@ void handleReply(uint32_t now) {
   lastReply = now;
   gotReply = true;
   warning = reply.warning;
-  copyText(displayText, sizeof(displayText), reply.text);
-  if (haveBeep && lastBeep != reply.beep) beepUntil = now + 120;
-  lastBeep = reply.beep;
-  haveBeep = true;
+  subtotal = reply.subtotal;
+  const bool scanReply = heldScan.sequence && heldScan.sequence == reply.scanAck;
+  if (reply.warning || scanReply || static_cast<int32_t>(messageUntil - now) <= 0) copyText(displayText, sizeof(displayText), reply.text);
+  if (scanReply) {
+    messageUntil = now + 2000;
+    if (reply.scanError) { beepUntil = now + 180; copyText(scanLine, sizeof(scanLine), "Try another tag"); }
+    else snprintf(scanLine, sizeof(scanLine), "Price: Rs. %.2f", reply.price / 100.0);
+    Serial.printf("Scan result: %s\n", reply.text);
+  }
+  // Verified cart weights remain silent; only rejected scans and mismatch beep.
   if (heldScan.sequence == reply.scanAck) heldScan.sequence = 0;
   if (!reply.command[0] || !strcmp(frame.ack, reply.command) || tareRemaining) return;
   if (!strcmp(reply.kind, "tare")) {
     copyText(tareCommand, sizeof(tareCommand), reply.command);
     tareRemaining = 12;
     tareTotal = 0;
+    Serial.println("Tare command received; keep tray empty");
   } else if (!strcmp(reply.kind, "calibrate") && isfinite(reply.value) && reply.value != 0) {
     factor = reply.value;
     calibrated = true;
@@ -147,6 +183,8 @@ void sampleScale(uint32_t now) {
       scale.set_offset(offset);
       preferences.putLong("offset", offset);
       haveOffset = true;
+      gotSample = false;
+      Serial.println("Tare completed");
       copyText(frame.ack, sizeof(frame.ack), tareCommand);
     }
     return;
@@ -170,6 +208,7 @@ void pollTag(uint32_t now) {
   copyText(lastUid, sizeof(lastUid), uid);
   copyText(heldScan.uid, sizeof(heldScan.uid), uid);
   heldScan.sequence = ++sequence;
+  Serial.printf("RFID UID: %s event: %lu\n", uid, (unsigned long)sequence);
 }
 
 void lcdLine(int row, const char *text) {
@@ -183,12 +222,14 @@ void setup() {
   Serial.begin(115200);
   pinMode(BUZZER, OUTPUT);
   digitalWrite(BUZZER, BUZZER_ACTIVE_HIGH ? LOW : HIGH);
+  if (NEXKART_PASSIVE_BUZZER) ledcAttach(BUZZER, NEXKART_BUZZER_HZ, 8);
   SPI.begin(RFID_SCK, RFID_MISO, RFID_MOSI, RFID_SS);
   reader.PCD_Init();
   Wire.begin(I2C_SDA, I2C_SCL);
   lcd.init();
   lcd.backlight();
-  lcdLine(0, "SmartCart SC-01");
+  lcdLine(0, "NexKart Ready");
+  Serial.println("NexKart starting; Serial 115200");
   scale.begin(HX_DOUT, HX_SCK);
   preferences.begin("smartcart");
   calibrated = preferences.isKey("factor") || INITIAL_FACTOR_CALIBRATED;
@@ -215,13 +256,17 @@ void loop() {
   frame.scan = heldScan;
   xQueueOverwrite(snapshots, &frame);
   const bool sounding = online && (warning ? now % 700 < 160 : static_cast<int32_t>(beepUntil - now) > 0);
-  digitalWrite(BUZZER, sounding == BUZZER_ACTIVE_HIGH ? HIGH : LOW);
+  if (NEXKART_PASSIVE_BUZZER) ledcWriteTone(BUZZER, sounding ? NEXKART_BUZZER_HZ : 0);
+  else digitalWrite(BUZZER, sounding == BUZZER_ACTIVE_HIGH ? HIGH : LOW);
   if (now - lastLcd >= 250) {
     lastLcd = now;
     lcdLine(0, online ? displayText : "Server offline");
     char weight[17];
     snprintf(weight, sizeof(weight), "%6.0f g", frame.grams);
-    lcdLine(1, frame.ready ? weight : frame.setupScale ? "Setup required" : "Scale waiting");
+    char total[17];
+    snprintf(total, sizeof(total), "Total: Rs. %.2f", subtotal / 100.0);
+    lcdLine(1, !frame.ready ? (frame.setupScale ? "Setup required" : "Scale waiting") :
+      online && static_cast<int32_t>(messageUntil - now) > 0 ? scanLine : (now / 2500) % 2 ? total : weight);
     if (frame.setupScale && haveOffset) Serial.printf("Net raw counts: %.0f\n", frame.grams);
   }
   delay(5);

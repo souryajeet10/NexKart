@@ -102,6 +102,7 @@ export default function ConnectCart({ connect }) {
         <p className="connect-help">Your cart code is printed beside its QR code.</p>
         </>}
       </section>
+      <p><a className="button" href="/simulator">Try the Virtual SmartCart Simulator</a></p>
       <p className="connect-footnote">Scan. Verify. Checkout.</p>
     </main>
   </div>;

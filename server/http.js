@@ -1,4 +1,5 @@
 import express from 'express';
+import { attachSimulator } from './simulator.js';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
@@ -28,8 +29,8 @@ function product(body) {
   ];
 }
 
-export function createApp(store, { secret = '', staticDir, clock } = {}) {
-  const cart = new Cart(store, clock);
+export function createApp(store, { secret = '', staticDir, clock, simulationEnabled = process.env.NODE_ENV !== 'production', deviceId, placementMs, mismatchMs, demoStore } = {}) {
+  const cart = new Cart(store, clock, { simulationEnabled: simulationEnabled && process.env.NODE_ENV !== 'production', deviceId, placementMs, mismatchMs });
   const app = express();
   app.disable('x-powered-by');
   const server = createServer(app);
@@ -66,6 +67,9 @@ export function createApp(store, { secret = '', staticDir, clock } = {}) {
   timer.unref();
   server.on('close', () => clearInterval(timer));
 
+  const simulator = attachSimulator(app, io, store, { enabled: cart.simulationEnabled, store: demoStore, clock, runId });
+  server.on('close', () => simulator.close());
+
   app.get('/api/cart', (_req, res) => res.json(snapshot()));
   app.get('/api/products', (_req, res) => res.json(store.sql('SELECT * FROM products ORDER BY id').all()));
   app.post('/api/products', (req, res) => {
@@ -97,18 +101,19 @@ export function createApp(store, { secret = '', staticDir, clock } = {}) {
     if (result?.error) return res.status(result.status).json({ error: result.error });
     res.json({ cart: snapshot(), result });
   });
-  const sim = () => { if (cart.data.mode !== 'simulation') fail('Switch to Simulation Mode first.'); };
+  const sim = () => { if (!cart.simulationEnabled) fail('Simulation is disabled.', 403); if (cart.data.mode !== 'simulation') fail('Switch to Simulation Mode first.'); };
   action('/sessions', () => cart.newSession());
   action('/scan', (body) => {
     sim();
     return cart.scan(body.uid, identifier(body.event, 'event ID'), 'simulation');
   });
-  action('/weight', (body) => cart.simulate(number(body.grams, -10000, 20000, 'Weight')));
+  action('/weight', (body) => { sim(); return cart.simulate(number(body.grams, -10000, 20000, 'Weight')); });
   action('/remove', (body) => cart.remove(number(body.lineId, 1, Number.MAX_SAFE_INTEGER, 'Item line ID', true)));
   action('/cancel', () => cart.cancel());
   action('/checkout', () => cart.checkout());
-  action('/sim/reset', () => cart.newSession(true));
+  action('/sim/reset', () => { sim(); return cart.newSession(true); });
   action('/sim/connection', (body) => {
+    sim();
     if (typeof body.online !== 'boolean') fail('Provide a connection state.', 400);
     cart.connection(body.online);
   });
@@ -128,6 +133,7 @@ export function createApp(store, { secret = '', staticDir, clock } = {}) {
     if (value === 0) fail('Calibration factor cannot be zero.', 400);
     cart.control(body.kind, value, randomUUID());
   });
+  app.get('/api/device/status', (_req, res) => res.json({ cartId: 'SC-01', connected: cart.connected, sensorReady: cart.sensorReady, deviceId: deviceId || store.get('boundDevice'), command: cart.data.command }));
   app.post('/api/device', (req, res) => {
     const key = Buffer.from(req.get('authorization') ?? '');
     const expected = Buffer.from('Bearer ' + secret);
@@ -155,14 +161,14 @@ export function createApp(store, { secret = '', staticDir, clock } = {}) {
     });
     res.json({
       state: cart.data.state, alert: Boolean(cart.data.alert && cart.open), beep: cart.data.beep,
-      command: cart.data.command, scan: result, session: cart.data.session,
-      subtotal: cart.view().subtotal, text: cart.data.alert?.title ?? cart.data.pending?.item.name ?? cart.data.state,
+      command: cart.data.command, scan: result, session: cart.data.session, expected: cart.expected, actual: cart.data.actual, sensorReady: cart.sensorReady,
+      subtotal: cart.view().subtotal, text: cart.data.alert ? 'Weight Mismatch' : cart.data.pending?.item.name ?? (cart.data.state === 'VERIFIED' ? 'Product Added' : cart.balanced && cart.items.length ? 'Weight Verified' : 'Scan Product'),
     });
   });
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found.' }));
   if (staticDir) {
-    app.get('/admin', (_req, res) => res.sendFile(join(staticDir, 'index.html')));
+    app.get(['/admin', '/simulator'], (_req, res) => res.sendFile(join(staticDir, 'index.html')));
     app.use(express.static(staticDir));
   }
   app.use((error, _req, res, _next) => {

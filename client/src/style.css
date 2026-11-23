@@ -483,3 +483,42 @@ body:has(.customer) { background: #eeebfc; }
   .success-ring svg path { stroke-dashoffset: 0; }
   .scan-cart-button, .connect-submit { transition: none; }
 }
+
+/* Virtual lab uses the existing NexKart theme and panel system. */
+.sim-mode-banner { display:flex; flex-wrap:wrap; gap:8px 24px; padding:16px; margin-bottom:16px; border:1px solid var(--line); border-radius:14px; background:var(--surface); }
+.sim-mode-banner strong { color:var(--brand); }
+.sim-mode-banner span,.sim-log { color:var(--muted); }
+.sim-toolbar { margin:16px 0; flex-wrap:wrap; }
+.sim-instruments,.sim-workspace { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:20px 0; }
+.virtual-simulator .panel { min-width:0; }
+.virtual-lcd { background:#26382a; padding:18px; border-radius:12px; border:5px solid #39423b; box-shadow:inset 0 2px 6px #0008; max-width:350px; }
+.virtual-lcd pre { margin:0; color:#1d3a16; background:#b2d86c; padding:12px 8px; font:clamp(14px,2.3vw,23px)/1.65 monospace; letter-spacing:2px; white-space:pre; text-align:center; border-radius:3px; text-shadow:0 0 2px #496e29; }
+.virtual-buzzer { display:flex; align-items:center; gap:18px; color:var(--muted); padding:16px; background:var(--surface); border-radius:16px; }
+.virtual-buzzer.sounding { color:#d34b39; background:#d34b3915; animation:sim-pulse 1.4s ease-in-out 2; }
+.virtual-basket { display:flex; align-items:center; justify-content:center; gap:16px; color:var(--brand); padding:24px 12px; border-bottom:3px solid var(--line); background:linear-gradient(135deg,#8454ed0c,#8454ed20); border-radius:16px 16px 30px 30px; }
+.sim-cart-row { display:flex; align-items:center; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--line); padding:16px 0; }
+.sim-cart-row > div { flex:1; min-width:130px; }
+.sim-cart-row small { display:block; color:var(--muted); margin-top:5px; }
+.virtual-tray { display:flex; flex-direction:column; gap:8px; align-items:center; padding:24px; border:2px solid var(--line); border-bottom:8px solid var(--line); border-radius:16px 16px 30px 30px; background:var(--surface); transition:border-color .2s; }
+.virtual-tray strong { font:700 32px monospace; }
+.virtual-tray.mismatch { border-color:#d34b39; }
+.sim-products { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px; margin-top:20px; }
+.sim-product { border:1px solid var(--line); border-radius:16px; padding:16px; display:flex; align-items:flex-start; flex-direction:column; gap:8px; transition:transform .18s; }
+.sim-product:hover { transform:translateY(-3px); }
+.sim-product h3,.sim-product p { margin:0; }
+.sim-product code { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.sim-product .button { margin-top:auto; width:100%; }
+.sim-product-art { height:72px; width:100%; display:grid; place-items:center; color:var(--brand); background:#8454ed12; border-radius:10px; }
+.sim-product-art img { max-height:68px; max-width:100%; object-fit:contain; }
+.sim-guide ol { display:flex; flex-wrap:wrap; gap:12px 26px; padding-left:20px; }
+.sim-guide li { padding:6px; color:var(--muted); }
+.sim-guide li.current { color:var(--brand); font-weight:700; }
+.sim-guide li.done { color:var(--green); }
+.sim-settings { display:grid; gap:12px; margin-top:16px; }
+.sim-log { padding-left:20px; line-height:1.7; font-size:13px; }
+.sim-log time { font-variant-numeric:tabular-nums; }
+.virtual-simulator input[type=range] { width:100%; margin:12px 0; }
+@keyframes sim-pulse { 50% { box-shadow:0 0 0 5px #d34b3918; } }
+@media(max-width:800px) { .sim-instruments,.sim-workspace { grid-template-columns:1fr; } .sim-products { grid-template-columns:repeat(2,minmax(0,1fr)); } .sim-product { padding:12px; } .sim-product .button { font-size:12px; } }
+@media(max-width:380px) { .sim-products { grid-template-columns:1fr; } }
+@media(prefers-reduced-motion:reduce) { .virtual-buzzer.sounding { animation:none; } .sim-product,.virtual-tray { transition:none; } }

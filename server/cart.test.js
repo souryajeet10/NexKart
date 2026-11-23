@@ -178,3 +178,57 @@ test('SQLite retains verified purchases and pending state across reopening', () 
     rmSync(folder, { recursive: true });
   }
 });
+
+
+test('hardware placement grace and sustained stable mismatch suppress premature alerts', (t) => {
+  const { cart, act, advance } = setup(t);
+  act(() => cart.switchMode('hardware'));
+  const read = (grams) => act(() => { cart.acceptDevice('esp', 'boot', false); cart.read(grams); });
+  for (let i = 0; i < 5; i++) read(0);
+  act(() => cart.scan(biscuit, 'event', 'hardware'));
+  for (let i = 0; i < 5; i++) read(160);
+  assert.equal(cart.data.alert, null);
+  advance(4000);
+  for (let i = 0; i < 5; i++) read(160);
+  assert.equal(cart.data.alert, null);
+  advance(1501);
+  read(160);
+  assert.equal(cart.data.alert.kind, 'mismatch');
+  for (let i = 0; i < 5; i++) read(100);
+  assert.equal(cart.ready, true);
+  assert.equal(cart.data.alert, null);
+});
+
+test('production policy archives simulated baskets without billing them as hardware purchases', (t) => {
+  const { cart, store, scan, weight } = setup(t);
+  scan(); weight(100);
+  const original = cart.data.session;
+  const hardware = new Cart(store, Date.now, { simulationEnabled: false });
+  assert.equal(hardware.data.mode, 'hardware');
+  assert.equal(hardware.items.length, 0);
+  assert.equal(store.sql('SELECT status FROM sessions WHERE id=?').get(original).status, 'RESET');
+  assert.equal(hardware.sensorReady, false);
+});
+
+
+test('first authenticated device binding and scan responses survive Cart reconstruction', (t) => {
+  const { store, cart, act } = setup(t);
+  act(() => { cart.switchMode('hardware'); cart.acceptDevice('first', 'boot1', false); });
+  const restored = new Cart(store);
+  assert.throws(() => restored.change(() => restored.acceptDevice('second', 'boot2', false)), /not assigned/);
+  restored.change(() => restored.acceptDevice('first', 'boot2', false));
+  assert.equal(restored.connected, true);
+  for (let i = 0; i < 5; i++) restored.change(() => restored.read(0));
+  const original = restored.change(() => restored.scan('FFFFFFFF', 'unknown', 'hardware'));
+  const again = new Cart(store);
+  const replay = again.change(() => again.scan('FFFFFFFF', 'unknown', 'hardware'));
+  assert.equal(replay.error, original.error);
+  assert.equal(replay.status, 404);
+  assert.equal(replay.duplicate, true);
+});
+
+test('fresh hardware catalog can be provisioned without demonstration UIDs', () => {
+  const store = openStore(':memory:', { seedDemo: false });
+  try { assert.equal(store.sql('SELECT count(*) AS total FROM products').get().total, 0); }
+  finally { store.close(); }
+});

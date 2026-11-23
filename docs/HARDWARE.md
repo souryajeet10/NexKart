@@ -1,5 +1,7 @@
 # ESP32 hardware setup
 
+For the complete current commissioning and testing workflow, see [HARDWARE_SETUP.md](../HARDWARE_SETUP.md).
+
 ## Wiring
 
 This pin map targets a classic ESP32 DevKit. Check the exact board pinout and module labels before connecting power. Set alternative GPIOs in `firmware/SmartCart/config.h`.
@@ -35,7 +37,7 @@ The firmware runs HTTP requests in a separate task. The main loop checks for HX7
 - Validate the pin map and voltages against the actual boards and confirm the LCD address.
 - Check tare and known weights at several points below the cell's rated load.
 - Verify RFID UID registration, rejected unknown tags, removal, repeat scans and Wi-Fi reconnect.
-- Verify the repeating warning, correction, confirmation pulse and buzzer polarity.
+- Verify the repeating warning, correction, silence after verification and buzzer polarity.
 - Disconnect the HX711 and ESP32 independently and verify checkout blocks.
 - After checkout, physically unload the trolley and wait for a stable empty scale before starting a new session.
 

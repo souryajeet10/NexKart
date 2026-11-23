@@ -14,14 +14,24 @@ export function normalizeUid(value) {
 }
 
 export class Cart {
-  constructor(store, clock = Date.now) {
+  constructor(store, clock = Date.now, { simulationEnabled = true, deviceId = null, placementMs = 4000, mismatchMs = 1500 } = {}) {
+    this.simulationEnabled = simulationEnabled;
+    this.deviceId = deviceId;
+    this.placementMs = placementMs;
+    this.mismatchMs = mismatchMs;
     this.store = store;
     this.clock = clock;
     this.data = store.get('cart') ?? {
-      mode: 'simulation', session: null, tolerance: 10, actual: 0, stable: 0,
+      mode: simulationEnabled ? 'simulation' : 'hardware', session: null, tolerance: 10, actual: 0, stable: 0,
       pending: null, alert: null, state: 'IDLE', simOnline: true, beep: 0,
       command: null,
     };
+    if (!simulationEnabled && this.data.mode === 'simulation') {
+      // Never reinterpret a simulated basket as physically verified stock.
+      if (this.data.session !== null) this.sql("UPDATE sessions SET status='RESET', ended=? WHERE id=? AND status='OPEN'").run(this.time, this.data.session);
+      Object.assign(this.data, { mode: 'hardware', session: null, pending: null, alert: null, command: null, state: 'IDLE' });
+    }
+    this.data.mismatchSince = null;
     this.samples = [];
     this.lastWeight = null;
     this.lastDevice = null;
@@ -80,7 +90,7 @@ export class Cart {
   view() {
     const items = this.items;
     return {
-      ...this.data, cartId: 'SC-01', session: this.session(), items, expected: this.expected,
+      ...this.data, simulationEnabled: this.simulationEnabled, targetWeight: this.expected + (this.data.pending && !this.data.pending.cancelled ? this.data.pending.delta : 0), cartId: 'SC-01', session: this.session(), items, expected: this.expected,
       subtotal: items.reduce((sum, item) => sum + item.price, 0), connected: this.connected, commissioning: Boolean(this.connected && this.device?.setupScale),
       sensorReady: this.sensorReady, ready: this.ready, capacity: CAPACITY, revision: this.revision,
       activity: this.sql('SELECT id,time,kind,message FROM activity WHERE session = ? ORDER BY id DESC LIMIT 32').all(this.data.session),
@@ -107,6 +117,7 @@ export class Cart {
 
   clearState() {
     this.data.alert = null;
+    this.data.mismatchSince = null;
     this.data.state = this.open && this.items.length && this.balanced ? 'CHECKOUT_READY' : 'IDLE';
   }
 
@@ -128,7 +139,8 @@ export class Cart {
   scan(rawUid, event, source) {
     const uid = normalizeUid(rawUid);
     const key = source + ':' + event;
-    if (this.sql('SELECT event FROM scans WHERE event = ?').get(key)) return { duplicate: true };
+    const replay = this.sql('SELECT response FROM scans WHERE event = ?').get(key);
+    if (replay) return { ...(replay.response ? JSON.parse(replay.response) : {}), duplicate: true };
     const product = this.sql('SELECT * FROM products WHERE uid = ?').get(uid);
     let error;
     let duplicate = false;
@@ -142,20 +154,25 @@ export class Cart {
         if (this.expected + product.grams > CAPACITY) fail('This product would exceed the 5 kg scale capacity.');
       } catch (err) { error = err.message; }
     }
-    this.sql('INSERT INTO scans VALUES (?,?,?,?,?)').run(key, this.data.session, uid, this.time, duplicate ? 'DUPLICATE' : error ? 'REJECTED' : 'ACCEPTED');
-    if (duplicate) return { duplicate: true };
+    this.sql('INSERT INTO scans(event,session,uid,time,result) VALUES (?,?,?,?,?)').run(key, this.data.session, uid, this.time, duplicate ? 'DUPLICATE' : error ? 'REJECTED' : 'ACCEPTED');
+    const save = (response) => {
+      this.sql('UPDATE scans SET response=? WHERE event=?').run(JSON.stringify(response), key);
+      return response;
+    };
+    if (duplicate) return save({ duplicate: true });
     if (source === 'hardware') this.recentScan = { uid, time: this.clock() };
     if (error) {
       this.log('alert', error);
-      return { error, status: product ? 409 : 404 };
+      return save({ error, status: product ? 409 : 404 });
     }
     this.log('scan', 'RFID ' + uid + ' · ' + product.name + ' · ₹' + (product.price / 100).toFixed(2));
     this.begin('add', product, product.grams);
-    return { accepted: true };
+    return save({ accepted: true, product });
   }
 
   begin(operation, item, delta) {
     this.samples = [];
+    this.data.mismatchSince = null;
     this.data.pending = { operation, item, delta, baseline: this.data.stable, since: this.clock(), cancelled: false, moved: false };
     this.data.state = operation === 'add' ? 'AWAITING_WEIGHT' : 'AWAITING_REMOVAL';
     this.log('info', (operation === 'add' ? 'Place ' : 'Remove ') + item.name + ' on the scale to verify.');
@@ -203,14 +220,15 @@ export class Cart {
       return;
     }
     this.samples.push(grams);
-    if (this.samples.length > SAMPLE_COUNT) this.samples.shift();
-    const stable = this.samples.length === SAMPLE_COUNT && Math.max(...this.samples) - Math.min(...this.samples) <= STABLE_SPAN;
-    this.data.stable = stable ? this.samples.reduce((sum, value) => sum + value, 0) / SAMPLE_COUNT : null;
+    if (this.samples.length > (this.data.sampleCount ?? SAMPLE_COUNT)) this.samples.shift();
+    const stable = this.samples.length === (this.data.sampleCount ?? SAMPLE_COUNT) && Math.max(...this.samples) - Math.min(...this.samples) <= (this.data.stableSpan ?? STABLE_SPAN);
+    this.data.stable = stable ? this.samples.reduce((sum, value) => sum + value, 0) / (this.data.sampleCount ?? SAMPLE_COUNT) : null;
     const pending = this.data.pending;
     if (pending && Math.abs(grams - pending.baseline) > STABLE_SPAN) {
       pending.moved = true;
       if (!this.data.alert) this.data.state = 'VERIFYING';
     }
+    if (!stable) this.data.mismatchSince = null;
     if (stable && !this.data.command) this.evaluate();
     else if (!pending && !this.data.alert) this.clearState();
   }
@@ -220,12 +238,20 @@ export class Cart {
       .run(this.data.session, this.time, pending.operation, pending.delta, change, result);
   }
 
+  persistentMismatch() {
+    if (this.data.mode === 'simulation') return true;
+    if (this.data.pending && this.clock() - this.data.pending.since < this.placementMs) return false;
+    this.data.mismatchSince ??= this.clock();
+    return this.clock() - this.data.mismatchSince >= this.mismatchMs;
+  }
+
   evaluate() {
     if (!this.sensorReady) return;
     const { pending, stable, tolerance } = this.data;
     if (!pending) {
       if (!this.open) { this.clearState(); return; }
       if (Math.abs(stable - this.expected) > tolerance) {
+        if (!this.persistentMismatch()) return;
         this.warn('unexpected', 'UNEXPECTED WEIGHT', this.expected, Math.round(stable), 'Unexplained weight change. Restore the verified cart weight.');
       } else if (this.data.alert || this.data.state !== 'VERIFIED') {
         this.clearState();
@@ -247,6 +273,7 @@ export class Cart {
     }
 
     if (Math.abs(delta) <= STABLE_SPAN) {
+      this.data.mismatchSince = null;
       this.data.alert = null;
       this.data.state = pending.operation === 'add' ? 'AWAITING_WEIGHT' : 'AWAITING_REMOVAL';
       return;
@@ -256,6 +283,7 @@ export class Cart {
       Math.abs(delta - pending.delta) <= tolerance &&
       Math.abs(stable - expectedTotal) <= tolerance;
     if (!matched) {
+      if (!this.persistentMismatch()) return;
       if (this.data.alert?.kind !== 'mismatch') this.record(pending, delta, 'MISMATCH');
       this.warn('mismatch', 'WEIGHT MISMATCH', pending.delta, Math.round(delta), 'Adjust the weight to verify ' + pending.item.name + '.');
       return;
@@ -265,6 +293,7 @@ export class Cart {
     } else {
       this.sql('UPDATE session_items SET removed = 1 WHERE id = ?').run(pending.item.lineId);
     }
+    this.data.mismatchSince = null;
     this.record(pending, delta, 'VERIFIED');
     this.data.pending = null;
     this.data.alert = null;
@@ -275,13 +304,15 @@ export class Cart {
   }
 
   simulate(grams) {
+    if (!this.simulationEnabled) fail('Simulation is disabled.', 403);
     if (this.data.mode !== 'simulation') fail('Switch to Simulation Mode first.');
     if (!this.connected) fail('Connect the simulated ESP32 first.');
     this.samples = [];
-    for (let sample = 0; sample < SAMPLE_COUNT; sample++) this.read(grams);
+    for (let sample = 0; sample < (this.data.sampleCount ?? SAMPLE_COUNT); sample++) this.read(grams);
   }
 
   switchMode(mode) {
+    if (mode === 'simulation' && !this.simulationEnabled) fail('Simulation is disabled.', 403);
     if (mode === this.data.mode) return;
     if (this.items.length || this.data.pending || this.data.alert || (this.data.actual !== null && Math.abs(this.data.actual) > this.data.tolerance)) {
       fail('Use an empty, clear shopping session before changing operating mode.');
@@ -344,6 +375,9 @@ export class Cart {
 
   acceptDevice(id, boot, setupScale) {
     if (this.data.mode !== 'hardware') fail('Select Hardware Mode on the dashboard.');
+    const bound = this.deviceId || this.store.get('boundDevice');
+    if (bound && bound !== id) fail('Device is not assigned to this cart.', 403);
+    if (!bound) this.store.set('boundDevice', id);
     if (this.connected && this.device?.id !== id) fail('A different device is already connected.');
     if (!this.connected || this.device?.boot !== boot) {
       this.log('info', 'ESP32 connected · ' + id);

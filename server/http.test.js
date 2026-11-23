@@ -59,7 +59,7 @@ test('catalog CRUD validates unique RFID tags and preserves captured sale detail
 });
 
 test('hardware protocol requires credentials and handles stable readings, replay and sensor loss', async (t) => {
-  const { request } = await setup(t, { secret: 'fixture-credential' });
+  const { request } = await setup(t, { secret: 'fixture-credential', placementMs: 0, mismatchMs: 0 });
   const session = (await request('/cart')).body.session.id;
   const post = (path, body) => request(path, 'POST', { ...body, session });
   await post('/mode', { mode: 'hardware' });
@@ -83,4 +83,89 @@ test('hardware protocol requires credentials and handles stable readings, replay
   await frame({ grams: null });
   assert.equal((await request('/cart')).body.ready, false);
   assert.equal((await post('/checkout', {})).code, 409);
+});
+
+
+test('disabled simulation cannot mutate a hardware cart and device binding survives offline', async (t) => {
+  let now = 1000;
+  const { request } = await setup(t, { secret: 'test-key', simulationEnabled: false, deviceId: 'assigned', clock: () => now });
+  const session = (await request('/cart')).body.session.id;
+  for (const [path, body] of [['/scan', { uid: 'A0010001', event: 'x' }], ['/weight', { grams: 100 }], ['/sim/reset', {}], ['/sim/connection', { online: true }], ['/mode', { mode: 'simulation' }]]) {
+    assert.equal((await request(path, 'POST', { session, ...body })).code, 403);
+  }
+  const frame = (id, extra = {}) => request('/device', 'POST', { id, boot: 'boot', grams: 0, ...extra }, { Authorization: 'Bearer test-key' });
+  assert.equal((await frame('assigned')).code, 200);
+  now += 10000;
+  assert.equal((await frame('other')).code, 403);
+  assert.equal((await request('/device/status')).body.connected, false);
+  for (let i = 0; i < 5; i++) await frame('assigned');
+  assert.equal((await request('/cart')).body.sensorReady, true);
+  const scan = { uid: 'FFFFFFFF', event: 'unknown' };
+  assert.equal((await frame('assigned', { scan })).body.scan.status, 404);
+  const replay = (await frame('assigned', { scan })).body.scan;
+  assert.equal(replay.status, 404);
+  assert.equal(replay.duplicate, true);
+});
+
+
+test('dedicated simulator is isolated from hardware, reuses catalog and publishes separate snapshots', async (t) => {
+  const { request, origin } = await setup(t, { secret: 'hardware-key' });
+  const real = (await request('/cart')).body;
+  await request('/mode', 'POST', { session: real.session.id, mode: 'hardware' });
+  const before = (await request('/cart')).body;
+  const socket = connect(origin, { transports: ['websocket'], autoConnect: false });
+  t.after(() => socket.close());
+  const initial = once(socket, 'simulator:cart'); socket.connect();
+  const [demo] = await initial;
+  assert.equal(demo.source, 'simulator');
+  const post = (path, body = {}) => request('/simulator/' + path, 'POST', { session: demo.session.id, ...body });
+  const event = { uid: 'A0010001', event: 'sim-1' };
+  assert.equal((await post('scan', event)).body.result.product.name, 'Biscuit Packet');
+  assert.equal((await post('scan', event)).body.result.duplicate, true);
+  const synced = new Promise(resolve => socket.on('simulator:cart', state => { if (state.subtotal === 2000) resolve(state); }));
+  await post('weight', { grams: 100 });
+  assert.equal((await synced).expected, 100);
+  assert.equal((await post('scan', event)).body.cart.items.length, 1);
+  await post('scan', { ...event, event: 'sim-2' });
+  const second = await post('weight', { grams: 200 });
+  assert.equal(second.body.cart.subtotal, 4000);
+  await post('weight', { grams: 300 });
+  assert.equal((await post('checkout')).code, 409);
+  await post('weight', { grams: 200 });
+  await post('remove', { lineId: second.body.cart.items[0].lineId });
+  assert.equal((await post('weight', { grams: 100 })).body.cart.subtotal, 2000);
+  const receipt = await post('checkout');
+  assert.equal(receipt.body.result.subtotal, 2000);
+  const history = (await request('/sessions')).body;
+  assert.equal(history.filter(row => row.status === 'PAID').length, 0);
+  assert.deepEqual((await request('/cart')).body, before);
+  await post('reset');
+  assert.equal((await post('weight', { grams: 0 })).code, 409, 'old session cannot mutate a reset demo');
+});
+
+test('virtual raw samples honor configured stability, reject invalid events and reconnect without hardware', async (t) => {
+  const { request } = await setup(t);
+  const { session } = (await request('/simulator/cart')).body;
+  const post = (path, body = {}) => request('/simulator/' + path, 'POST', { session: session.id, ...body });
+  assert.equal((await post('settings', { tolerance: 5, sampleCount: 3, stableSpan: 1 })).code, 200);
+  await post('sample', { grams: 0 });
+  await post('sample', { grams: 3 });
+  assert.equal((await post('sample', { grams: 0 })).body.cart.sensorReady, false);
+  await post('weight', { grams: 0 });
+  assert.equal((await post('scan', { uid: 'FFFFFFFF', event: 'unknown' })).code, 404);
+  assert.equal((await post('scan', { uid: 'A0010001', event: {} })).code, 400);
+  await post('scan', { uid: 'A0010001', event: 'ok' });
+  await post('sample', { grams: 100 });
+  assert.equal((await post('sample', { grams: 100 })).body.cart.subtotal, 0);
+  assert.equal((await post('sample', { grams: 100 })).body.cart.subtotal, 2000);
+  await post('connection', { online: false });
+  assert.equal((await post('weight', { grams: 100 })).code, 409);
+  assert.equal((await post('connection', { online: true })).body.cart.ready, true);
+  assert.equal((await post('settings', { tolerance: 99, sampleCount: 3, stableSpan: 1 })).code, 400);
+});
+
+test('dedicated simulator API is disabled when simulation is disabled', async (t) => {
+  const { request } = await setup(t, { simulationEnabled: false });
+  assert.equal((await request('/simulator/cart')).code, 403);
+  assert.equal((await request('/simulator/reset', 'POST', { session: 1 })).code, 403);
 });
