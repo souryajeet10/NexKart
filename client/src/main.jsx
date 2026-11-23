@@ -134,7 +134,7 @@ function App() {
   return <>
     <div className="app">
       <aside className="rail">
-        <div className="brand"><img className="brand-logo" src="/nexkart-logo.png" alt=""/><div>NexKart<small>ADMIN CONSOLE</small></div></div>
+        <div className="brand"><img className="brand-logo" src="/nexkart-logo.png?v=27d2da9c" alt=""/><div>NexKart<small>ADMIN CONSOLE</small></div></div>
         <p className="nav-label">ADMIN WORKSPACE</p>
         <nav aria-label="Main navigation">
           {[[LayoutDashboard, 'Overview'], [Package, 'Products'], [History, 'Sessions']].map(([Icon, name]) =>
@@ -219,7 +219,7 @@ function Customer({ cart, products, action, checkout, openReceipt, busy, live, t
   </div>;
   return <div className="customer">
     <header className="customer-header"><div className="customer-header-inner">
-      <a href="/" className="brand"><img className="brand-logo" src="/nexkart-logo.png" alt=""/><div>NexKart<small>Self Checkout</small></div></a>
+      <a href="/" className="brand"><img className="brand-logo" src="/nexkart-logo.png?v=27d2da9c" alt=""/><div>NexKart<small>Self Checkout</small></div></a>
       <div className="top-controls">{themeButton}</div>
     </div></header>
     <main className="customer-content">
